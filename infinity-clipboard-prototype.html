@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无限剪贴板 - Infinity Clipboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar h1 {
+            font-size: 18px;
+            margin-right: 30px;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 400px;
+            margin: 0 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 20px;
+            background: #34495e;
+            color: white;
+            font-size: 14px;
+        }
+
+        .search-input::placeholder {
+            color: #bdc3c7;
+        }
+
+        .toolbar-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        /* 主画布区域 */
+        .canvas-container {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            background: #ecf0f1;
+        }
+
+        .canvas {
+            position: relative;
+            min-width: 100%;
+            min-height: 100%;
+            padding: 20px;
+        }
+
+        /* 网格布局 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        /* 剪贴板项目 */
+        .clipboard-item {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            position: relative;
+            min-height: 100px;
+        }
+
+        .clipboard-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .clipboard-item.highlight {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .item-type {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            background: #f8f9fa;
+            color: #666;
+        }
+
+        .action-btn:hover {
+            background: #e9ecef;
+        }
+
+        .item-content {
+            word-wrap: break-word;
+        }
+
+        .text-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .code-content {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            overflow-x: auto;
+        }
+
+        .image-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .image-content img:hover {
+            opacity: 0.8;
+        }
+
+        .item-timestamp {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        /* 代码语言选择器 */
+        .language-selector {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px;
+            font-size: 12px;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #666;
+            text-align: center;
+        }
+
+        .empty-state h2 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .empty-state p {
+            margin-bottom: 20px;
+        }
+
+        /* 提示框 */
+        .tooltip {
+            position: fixed;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1001;
+            pointer-events: none;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .toolbar {
+                padding: 0 10px;
+            }
+            
+            .toolbar h1 {
+                font-size: 16px;
+                margin-right: 15px;
+            }
+            
+            .search-container {
+                margin: 0 10px;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+                padding: 15px;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+        <h1>📋 无限剪贴板</h1>
+        
+        <div class="search-container">
+            <input type="text" class="search-input" placeholder="搜索剪贴板内容..." id="searchInput">
+        </div>
+        
+        <div class="toolbar-buttons">
+            <button class="btn btn-primary" onclick="clearAll()">清空全部</button>
+            <button class="btn btn-secondary" onclick="exportData()">导出数据</button>
+            <button class="btn btn-secondary" onclick="importData()">导入数据</button>
+            <button class="btn btn-secondary" onclick="showHelp()" title="使用帮助">❓</button>
+        </div>
+    </div>
+
+    <!-- 主画布区域 -->
+    <div class="canvas-container">
+        <div class="canvas">
+            <div class="grid" id="clipboardGrid">
+                <!-- 剪贴板项目将在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示框 -->
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // 全局变量
+        let clipboardItems = [];
+        let currentSearchTerm = '';
+        let nextId = 1;
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            loadClipboardData();
+            setupEventListeners();
+            renderClipboardItems();
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 粘贴事件
+            document.addEventListener('paste', handlePaste);
+            
+            // 搜索事件
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+            
+            // 键盘快捷键
+            document.addEventListener('keydown', handleKeyboardShortcuts);
+            
+            // 点击事件委托
+            document.getElementById('clipboardGrid').addEventListener('click', handleGridClick);
+            
+            // 右键菜单事件
+            document.addEventListener('contextmenu', handleContextMenu);
+        }
+
+        // 处理粘贴事件
+        function handlePaste(event) {
+            event.preventDefault();
+            
+            const clipboardData = event.clipboardData;
+            if (!clipboardData) return;
+
+            // 处理图片
+            if (clipboardData.files.length > 0) {
+                const file = clipboardData.files[0];
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        addClipboardItem({
+                            type: 'image',
+                            content: e.target.result,
+                            timestamp: new Date()
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                }
+            }
+
+            // 处理文本
+            const text = clipboardData.getData('text/plain');
+            if (text) {
+                // 检测是否为代码
+                const isCode = detectCode(text);
+                addClipboardItem({
+                    type: isCode ? 'code' : 'text',
+                    content: text,
+                    language: isCode ? detectLanguage(text) : null,
+                    timestamp: new Date()
+                });
+            }
+        }
+
+        // 检测是否为代码
+        function detectCode(text) {
+            const codePatterns = [
+                /function\s+\w+\s*\(/,
+                /if\s*\(.*\)\s*{/,
+                /for\s*\(.*\)\s*{/,
+                /while\s*\(.*\)\s*{/,
+                /import\s+.*from/,
+                /require\s*\(/,
+                /console\.log/,
+                /class\s+\w+/,
+                /def\s+\w+/,
+                /public\s+class/,
+                /private\s+\w+/,
+                /protected\s+\w+/,
+                /<html>/i,
+                /<!DOCTYPE/i,
+                /<script>/i,
+                /<style>/i
+            ];
+            
+            return codePatterns.some(pattern => pattern.test(text));
+        }
+
+        // 检测代码语言
+        function detectLanguage(text) {
+            if (text.includes('function') && text.includes('console.log')) return 'javascript';
+            if (text.includes('import') && text.includes('from')) return 'javascript';
+            if (text.includes('def ') && text.includes(':')) return 'python';
+            if (text.includes('public class') || text.includes('private ')) return 'java';
+            if (text.includes('<html>') || text.includes('<!DOCTYPE')) return 'html';
+            if (text.includes('<script>')) return 'javascript';
+            if (text.includes('<style>')) return 'css';
+            if (text.includes('function') && text.includes('{')) return 'javascript';
+            return 'text';
+        }
+
+        // 添加剪贴板项目
+        function addClipboardItem(item) {
+            item.id = nextId++;
+            clipboardItems.unshift(item);
+            saveClipboardData();
+            renderClipboardItems();
+            showTooltip('内容已添加到剪贴板！');
+        }
+
+        // 渲染剪贴板项目
+        function renderClipboardItems() {
+            const grid = document.getElementById('clipboardGrid');
+            const filteredItems = filterItems(clipboardItems, currentSearchTerm);
+            
+            if (filteredItems.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <h2>📋 无限剪贴板</h2>
+                        <p>还没有任何内容，试试粘贴一些文本、代码或图片吧！</p>
+                        <p>💡 提示：使用 Ctrl+V 粘贴内容</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => createItemHTML(item)).join('');
+        }
+
+        // 创建项目HTML
+        function createItemHTML(item) {
+            const timestamp = new Date(item.timestamp).toLocaleString('zh-CN');
+            const content = escapeHtml(item.content);
+            
+            let contentHTML = '';
+            if (item.type === 'image') {
+                contentHTML = `<div class="image-content"><img src="${content}" alt="粘贴的图片"></div>`;
+            } else if (item.type === 'code') {
+                contentHTML = `
+                    <div class="code-content">${content}</div>
+                    <select class="language-selector" onchange="changeLanguage(${item.id}, this.value)">
+                        <option value="text" ${item.language === 'text' ? 'selected' : ''}>文本</option>
+                        <option value="javascript" ${item.language === 'javascript' ? 'selected' : ''}>JavaScript</option>
+                        <option value="python" ${item.language === 'python' ? 'selected' : ''}>Python</option>
+                        <option value="java" ${item.language === 'java' ? 'selected' : ''}>Java</option>
+                        <option value="html" ${item.language === 'html' ? 'selected' : ''}>HTML</option>
+                        <option value="css" ${item.language === 'css' ? 'selected' : ''}>CSS</option>
+                    </select>
+                `;
+            } else if (item.type === 'image') {
+                contentHTML = `
+                    <div class="image-content">
+                        <img src="${content}" alt="粘贴的图片" title="右键点击图片查看更多选项">
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-top: 5px;">
+                        💡 提示：右键点击图片可复制图片到剪贴板
+                    </div>
+                `;
+            } else {
+                contentHTML = `<div class="text-content">${content}</div>`;
+            }
+
+            return `
+                <div class="clipboard-item" data-id="${item.id}">
+                    <div class="item-header">
+                        <span class="item-type">${getTypeIcon(item.type)} ${item.type}</span>
+                        <div class="item-actions">
+                            <button class="action-btn" onclick="copyToClipboard('${escapeHtml(item.content)}', '${item.type}')" title="复制到剪贴板">📋</button>
+                            <button class="action-btn" onclick="deleteItem(${item.id})" title="删除">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="item-content">
+                        ${contentHTML}
+                    </div>
+                    <div class="item-timestamp">${timestamp}</div>
+                </div>
+            `;
+        }
+
+        // 获取类型图标
+        function getTypeIcon(type) {
+            const icons = {
+                'text': '📝',
+                'code': '💻',
+                'image': '🖼️'
+            };
+            return icons[type] || '📄';
+        }
+
+        // 过滤项目
+        function filterItems(items, searchTerm) {
+            if (!searchTerm) return items;
+            
+            return items.filter(item => {
+                const content = item.content.toLowerCase();
+                const search = searchTerm.toLowerCase();
+                return content.includes(search);
+            });
+        }
+
+        // 处理搜索
+        function handleSearch(event) {
+            currentSearchTerm = event.target.value;
+            renderClipboardItems();
+        }
+
+        // 复制到剪贴板
+        async function copyToClipboard(content, type = 'text') {
+            try {
+                if (type === 'image') {
+                    // 复制图片到剪贴板
+                    const response = await fetch(content);
+                    const blob = await response.blob();
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            [blob.type]: blob
+                        })
+                    ]);
+                    showTooltip('图片已复制到剪贴板！');
+                } else {
+                    // 复制文本到剪贴板
+                    await navigator.clipboard.writeText(content);
+                    showTooltip('已复制到剪贴板！');
+                }
+            } catch (err) {
+                console.error('复制失败:', err);
+                if (type === 'image') {
+                    // 图片复制失败时的降级方案
+                    showTooltip('图片复制失败，请右键保存图片');
+                } else {
+                    // 文本复制失败时的降级方案
+                    const textArea = document.createElement('textarea');
+                    textArea.value = content;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    showTooltip('已复制到剪贴板！');
+                }
+            }
+        }
+
+        // 删除项目
+        function deleteItem(id) {
+            clipboardItems = clipboardItems.filter(item => item.id !== id);
+            saveClipboardData();
+            renderClipboardItems();
+            showTooltip('项目已删除！');
+        }
+
+        // 清空全部
+        function clearAll() {
+            if (confirm('确定要清空所有剪贴板内容吗？')) {
+                clipboardItems = [];
+                saveClipboardData();
+                renderClipboardItems();
+                showTooltip('所有内容已清空！');
+            }
+        }
+
+        // 导出数据
+        function exportData() {
+            const data = JSON.stringify(clipboardItems, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `clipboard-data-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showTooltip('数据已导出！');
+        }
+
+        // 导入数据
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+                            clipboardItems = importedData;
+                            nextId = Math.max(...clipboardItems.map(item => item.id), 0) + 1;
+                            saveClipboardData();
+                            renderClipboardItems();
+                            showTooltip('数据已导入！');
+                        } catch (error) {
+                            alert('导入失败：文件格式不正确');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // 改变代码语言
+        function changeLanguage(id, language) {
+            const item = clipboardItems.find(item => item.id === id);
+            if (item) {
+                item.language = language;
+                saveClipboardData();
+            }
+        }
+
+        // 处理键盘快捷键
+        function handleKeyboardShortcuts(event) {
+            // Ctrl+V 已经在粘贴事件中处理
+            if (event.ctrlKey && event.key === 'f') {
+                event.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+            if (event.ctrlKey && event.key === 'a') {
+                event.preventDefault();
+                // 全选当前项目（如果需要的话）
+            }
+            if (event.key === 'Escape') {
+                document.getElementById('searchInput').value = '';
+                currentSearchTerm = '';
+                renderClipboardItems();
+            }
+        }
+
+        // 处理网格点击事件
+        function handleGridClick(event) {
+            const item = event.target.closest('.clipboard-item');
+            if (item && event.target.classList.contains('clipboard-item')) {
+                // 点击项目时复制内容
+                const id = parseInt(item.dataset.id);
+                const clipboardItem = clipboardItems.find(item => item.id === id);
+                if (clipboardItem) {
+                    copyToClipboard(clipboardItem.content, clipboardItem.type);
+                }
+            }
+        }
+
+        // 处理右键菜单
+        function handleContextMenu(event) {
+            const img = event.target.closest('.image-content img');
+            if (img) {
+                event.preventDefault();
+                const item = img.closest('.clipboard-item');
+                const id = parseInt(item.dataset.id);
+                const clipboardItem = clipboardItems.find(item => item.id === id);
+                
+                if (clipboardItem && clipboardItem.type === 'image') {
+                    showImageContextMenu(event, clipboardItem);
+                }
+            }
+        }
+
+        // 显示图片右键菜单
+        function showImageContextMenu(event, clipboardItem) {
+            // 移除现有的右键菜单
+            const existingMenu = document.getElementById('contextMenu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+
+            const menu = document.createElement('div');
+            menu.id = 'contextMenu';
+            menu.style.cssText = `
+                position: fixed;
+                top: ${event.clientY}px;
+                left: ${event.clientX}px;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 10000;
+                min-width: 150px;
+            `;
+
+            const menuItems = [
+                { text: '复制图片到剪贴板', action: () => copyToClipboard(clipboardItem.content, 'image') },
+                { text: '保存图片', action: () => downloadImage(clipboardItem.content) },
+                { text: '在新窗口打开', action: () => window.open(clipboardItem.content, '_blank') }
+            ];
+
+            menuItems.forEach(item => {
+                const menuItem = document.createElement('div');
+                menuItem.textContent = item.text;
+                menuItem.style.cssText = `
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-bottom: 1px solid #eee;
+                    font-size: 14px;
+                `;
+                menuItem.addEventListener('mouseenter', () => {
+                    menuItem.style.background = '#f5f5f5';
+                });
+                menuItem.addEventListener('mouseleave', () => {
+                    menuItem.style.background = 'white';
+                });
+                menuItem.addEventListener('click', () => {
+                    item.action();
+                    menu.remove();
+                });
+                menu.appendChild(menuItem);
+            });
+
+            document.body.appendChild(menu);
+
+            // 点击其他地方关闭菜单
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu() {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                });
+            }, 100);
+        }
+
+        // 下载图片
+        function downloadImage(imageSrc) {
+            const link = document.createElement('a');
+            link.href = imageSrc;
+            link.download = `clipboard-image-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showTooltip('图片已保存！');
+        }
+
+        // 显示提示框
+        function showTooltip(message) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.textContent = message;
+            tooltip.style.display = 'block';
+            
+            setTimeout(() => {
+                tooltip.style.display = 'none';
+            }, 2000);
+        }
+
+        // 转义HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 保存数据到本地存储
+        function saveClipboardData() {
+            try {
+                localStorage.setItem('infinityClipboardData', JSON.stringify(clipboardItems));
+                localStorage.setItem('infinityClipboardNextId', nextId.toString());
+            } catch (error) {
+                console.error('保存数据失败:', error);
+            }
+        }
+
+        // 从本地存储加载数据
+        function loadClipboardData() {
+            try {
+                const savedData = localStorage.getItem('infinityClipboardData');
+                const savedNextId = localStorage.getItem('infinityClipboardNextId');
+                
+                if (savedData) {
+                    clipboardItems = JSON.parse(savedData);
+                }
+                
+                if (savedNextId) {
+                    nextId = parseInt(savedNextId);
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                clipboardItems = [];
+                nextId = 1;
+            }
+        }
+
+        // 显示使用说明
+        function showHelp() {
+            const helpText = `
+快捷键说明：
+• Ctrl+V: 粘贴内容
+• Ctrl+F: 聚焦搜索框
+• Esc: 清空搜索
+• 点击项目: 复制内容到剪贴板
+
+功能说明：
+• 支持文本、代码、图片粘贴
+• 自动检测代码类型
+• 本地存储，数据安全
+• 搜索功能快速定位
+• 支持数据导入导出
+
+图片处理：
+• 右键点击图片可复制图片到剪贴板
+• 支持保存图片到本地
+• 支持在新窗口打开图片
+            `;
+            alert(helpText);
+        }
+
+        // 页面加载完成后显示欢迎信息
+        window.addEventListener('load', function() {
+            if (clipboardItems.length === 0) {
+                showTooltip('欢迎使用无限剪贴板！按 Ctrl+V 开始粘贴内容');
+            }
+        });
+    </script>
+</body>
+</html> 
