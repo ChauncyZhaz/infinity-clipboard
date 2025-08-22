@@ -126,6 +126,6 @@ src/
 
 欢迎提交Issue和Pull Request来改进这个项目！
 
-## �� 许可证
+##  许可证
 
 MIT License 

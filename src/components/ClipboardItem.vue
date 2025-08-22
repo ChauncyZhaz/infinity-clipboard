@@ -96,6 +96,8 @@ export default {
   position: relative;
   min-height: 100px;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
 }
 
 .clipboard-item:hover {
@@ -140,6 +142,7 @@ export default {
 
 .item-content {
   word-wrap: break-word;
+  flex: 1;
 }
 
 .text-content {
@@ -197,12 +200,14 @@ export default {
 .image-tip {
   font-size: 11px;
   color: #666;
-  margin-top: 5px;
+  margin-top: auto;
+  padding-top: 5px;
 }
 
 .item-timestamp {
   font-size: 11px;
   color: #999;
-  margin-top: 10px;
+  margin-top: auto;
+  padding-top: 5px;
 }
-</style> 
+</style>
